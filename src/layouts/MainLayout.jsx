@@ -5,7 +5,6 @@ import Dashboard from "../pages/Dashboard";
 export default function MainLayout() {
 return ( <div className="flex min-h-screen bg-slate-100"> <Sidebar />
 
-```
   <div className="flex-1">
     <Header />
 
@@ -14,7 +13,6 @@ return ( <div className="flex min-h-screen bg-slate-100"> <Sidebar />
     </main>
   </div>
 </div>
-
 
 );
 }
