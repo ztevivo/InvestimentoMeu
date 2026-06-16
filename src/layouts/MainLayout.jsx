@@ -3,7 +3,10 @@ import Header from "../components/Header";
 import Dashboard from "../pages/Dashboard";
 
 export default function MainLayout() {
-return ( <div className="flex min-h-screen bg-slate-100"> <Sidebar />
+return (
+
+
+
 
   <div className="flex-1">
     <Header />
@@ -15,4 +18,3 @@ return ( <div className="flex min-h-screen bg-slate-100"> <Sidebar />
 </div>
 
 );
-}
