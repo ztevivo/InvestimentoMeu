@@ -1,6 +1,3 @@
-
-e deixe o arquivo exatamente assim:
-
 ```jsx
 import {
   LayoutDashboard,
