@@ -26,11 +26,7 @@ export default function Dashboard() {
   );
 
   if (loading) {
-    return (
-      <div className="text-center py-20">
-        Carregando...
-      </div>
-    );
+    return <div className="text-center py-20">Carregando...</div>;
   }
 
   return (
@@ -38,7 +34,6 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl shadow-sm p-5">
           <h3 className="text-slate-500 text-sm">Patrimônio Total</h3>
-
           <p className="text-3xl font-bold mt-2">
             {patrimonio.toLocaleString("pt-BR", {
               style: "currency",
@@ -49,46 +44,18 @@ export default function Dashboard() {
 
         <div className="bg-white rounded-xl shadow-sm p-5">
           <h3 className="text-slate-500 text-sm">Carteiras</h3>
-          <p className="text-3xl font-bold mt-2">
-            {data.portfolios.length}
-          </p>
+          <p className="text-3xl font-bold mt-2">{data.portfolios.length}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-5">
           <h3 className="text-slate-500 text-sm">Ativos</h3>
-          <p className="text-3xl font-bold mt-2">
-            {data.tickers.length}
-          </p>
+          <p className="text-3xl font-bold mt-2">{data.tickers.length}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-5">
           <h3 className="text-slate-500 text-sm">Posições</h3>
-          <p className="text-3xl font-bold mt-2">
-            {data.positions.length}
-          </p>
+          <p className="text-3xl font-bold mt-2">{data.positions.length}</p>
         </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold mb-4">Carteiras</h3>
-
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3">Nome</th>
-              <th className="text-left py-3">Descrição</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {data.portfolios.map((portfolio) => (
-              <tr key={portfolio.id} className="border-b">
-                <td className="py-3">{portfolio.name}</td>
-                <td className="py-3">{portfolio.description}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );
