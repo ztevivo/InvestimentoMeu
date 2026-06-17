@@ -11,14 +11,14 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    async function load() {
-      const result = await getDashboardData();
-      setData(result);
-      setLoading(false);
-    }
+  async function load() {
+    const result = await getDashboardData();
+    setData(result);
+    setLoading(false);
+  }
 
-    load();
-  }, []);
+  load();
+}, []);
 
   const patrimonio = data.positions.reduce(
     (total, item) => total + Number(item.market_value || 0),
