@@ -1,9 +1,12 @@
+import { useApp } from "../context/AppContext";
+
+const titles = { dashboard: "Dashboard", carteiras: "Carteiras", ativos: "Ativos", operacoes: "Operações" };
+
 export default function Header() {
+  const { currentPage } = useApp();
   return (
-    <header className="bg-white border-b border-slate-200 px-6 py-4">
-      <h2 className="text-2xl font-bold text-slate-800">
-        Dashboard
-      </h2>
+    <header className="bg-white border-b border-slate-200 px-6 py-4 shrink-0">
+      <h2 className="text-xl font-bold text-slate-800">{titles[currentPage] || "Dashboard"}</h2>
     </header>
   );
 }
