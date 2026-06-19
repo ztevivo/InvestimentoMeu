@@ -63,13 +63,14 @@ export default function Carteiras() {
 
   async function handleSave() {
     if (!form.name.trim()) {
-      setError("O campo Nome da Carteira é mandatório.");
+      setError("O campo Nome da Carteira é obrigatório.");
       return;
     }
 
     setSaving(true);
     setError("");
 
+    // O payload envia estritamente a sigla curta de 3 letras exigida pela Constraint do banco (ex: "BRL")
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
@@ -178,7 +179,7 @@ export default function Carteiras() {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nome da Carteira</label>
               <input 
                 type="text" 
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="Ex: Carteira de Longo Prazo"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -188,7 +189,7 @@ export default function Carteiras() {
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Descrição</label>
               <textarea 
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 rows={2}
                 placeholder="Estratégia ou objetivos desta carteira"
                 value={form.description}
@@ -200,7 +201,7 @@ export default function Carteiras() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda Core</label>
                 <select 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
@@ -212,7 +213,7 @@ export default function Carteiras() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Status</label>
                 <select 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   value={form.is_active ? "true" : "false"}
                   onChange={(e) => setForm({ ...form, is_active: e.target.value === "true" })}
                 >
