@@ -1,102 +1,150 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../services/supabase";
 import Modal from "../components/Modal";
-import { Plus, Pencil, Trash2, Briefcase, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Briefcase, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
-const empty = { name: "", description: "", currency: "BRL", is_active: true };
+const emptyForm = { 
+  name: "", 
+  description: "", 
+  currency: "BRL", 
+  is_active: true 
+};
 
 export default function Carteiras() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  async function load() {
+  async function loadCarteiras() {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from("investment_portfolios")
       .select("*")
       .eq("is_deleted", false)
       .order("created_at", { ascending: false });
-    setItems(data || []);
+    
+    if (!err) setItems(data || []);
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    loadCarteiras(); 
+  }, []);
 
-  function openCreate() { setForm(empty); setEditId(null); setError(""); setModal("create"); }
-  function openEdit(item) {
-    setForm({ name: item.name, description: item.description || "", currency: item.currency || "BRL", is_active: item.is_active });
-    setEditId(item.id); setError(""); setModal("edit");
+  function openCreate() { 
+    setForm(emptyForm); 
+    setEditId(null); 
+    setError(""); 
+    setModal("create"); 
   }
-  function closeModal() { setModal(null); setEditId(null); }
+
+  function openEdit(item) {
+    setForm({ 
+      name: item.name, 
+      description: item.description || "", 
+      currency: item.currency || "BRL", 
+      is_active: item.is_active 
+    });
+    setEditId(item.id); 
+    setError(""); 
+    setModal("edit");
+  }
 
   async function handleSave() {
-    if (!form.name.trim()) { setError("Nome é obrigatório."); return; }
-    setSaving(true); setError("");
-    const payload = { name: form.name.trim(), description: form.description, currency: form.currency, is_active: form.is_active };
-    if (modal === "create") {
-      await supabase.from("investment_portfolios").insert([payload]);
-    } else {
-      await supabase.from("investment_portfolios").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", editId);
+    if (!form.name.trim()) {
+      setError("O campo Nome da Carteira é obrigatório para a criação.");
+      return;
     }
-    setSaving(false); closeModal(); load();
+
+    setSaving(true);
+    setError("");
+
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim(),
+      currency: form.currency,
+      is_active: form.is_active,
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      if (editId) {
+        const { error: err } = await supabase
+          .from("investment_portfolios")
+          .update(payload)
+          .eq("id", editId);
+        if (err) throw err;
+      } else {
+        const { error: err } = await supabase
+          .from("investment_portfolios")
+          .insert([{ ...payload, is_deleted: false }]);
+        if (err) throw err;
+      }
+      setModal(null);
+      loadCarteiras();
+    } catch (err) {
+      setError(err.message || "Erro de conexão ao salvar a carteira.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete(id) {
-    if (!confirm("Excluir esta carteira?")) return;
-    await supabase.from("investment_portfolios").update({ is_deleted: true }).eq("id", id);
-    load();
+    if (!window.confirm("A remoção da carteira ocultará seus dados consolidados. Confirmar?")) return;
+    const { error: err } = await supabase
+      .from("investment_portfolios")
+      .update({ is_deleted: true, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (!err) loadCarteiras();
   }
 
-  const active = items.filter(i => i.is_active);
-  const inactive = items.filter(i => !i.is_active);
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex gap-4 text-sm text-slate-500">
-          <span><span className="font-semibold text-slate-700">{active.length}</span> ativas</span>
-          <span><span className="font-semibold text-slate-700">{inactive.length}</span> inativas</span>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80">
+        <div>
+          <h1 className="text-base font-bold text-slate-900">Agrupadores de Estrutura (Carteiras)</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Crie ambientes isolados para testes, hold de longo prazo ou trading.</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        <button 
+          onClick={openCreate}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl shadow-md shadow-indigo-200 transition"
+        >
           <Plus size={16} /> Nova Carteira
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-slate-400">Carregando...</div>
+        <div className="text-center py-12 text-slate-500 font-medium">Mapeando carteiras ativas...</div>
       ) : items.length === 0 ? (
-        <div className="text-center py-20 text-slate-400">
-          <Briefcase size={40} className="mx-auto mb-3 opacity-30" />
-          <p className="text-lg font-medium">Nenhuma carteira ainda</p>
-          <p className="text-sm mt-1">Crie sua primeira carteira para começar</p>
+        <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm text-slate-400">
+          Você não possui carteiras registradas. Toque em "Nova Carteira" para iniciar os testes.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((item) => (
-            <div key={item.id} className={`bg-white rounded-xl shadow-sm p-5 flex flex-col gap-3 border-l-4 ${item.is_active ? "border-indigo-500" : "border-slate-300"}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-slate-800 truncate">{item.name}</h3>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${item.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                      {item.is_active ? "Ativa" : "Inativa"}
-                    </span>
-                  </div>
-                  {item.description && <p className="text-sm text-slate-500 mt-1 line-clamp-2">{item.description}</p>}
+            <div key={item.id} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition group">
+              <div>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all"><Briefcase size={20} /></div>
+                  <span className={`flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${item.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                    {item.is_active ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                    {item.is_active ? "Ativa" : "Inativa"}
+                  </span>
                 </div>
-                <div className="flex gap-2 ml-2 shrink-0">
-                  <button onClick={() => openEdit(item)} className="text-slate-400 hover:text-indigo-600 transition"><Pencil size={15} /></button>
-                  <button onClick={() => handleDelete(item.id)} className="text-slate-400 hover:text-red-500 transition"><Trash2 size={15} /></button>
-                </div>
+                <h3 className="text-base font-bold text-slate-800 tracking-tight">{item.name}</h3>
+                <p className="text-xs text-slate-400 font-medium mt-1 min-h-[32px] line-clamp-2">{item.description || "Sem descrição informada."}</p>
               </div>
-              <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-slate-100">
-                <span>Moeda: <span className="font-medium text-slate-600">{item.currency}</span></span>
-                <span>{new Date(item.created_at).toLocaleDateString("pt-BR")}</span>
+
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-5">
+                <span className="text-xs font-bold text-slate-500 uppercase bg-slate-50 px-2 py-1 rounded">Moeda: {item.currency}</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(item)} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"><Pencil size={14} /></button>
+                  <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"><Trash2 size={14} /></button>
+                </div>
               </div>
             </div>
           ))}
@@ -104,42 +152,71 @@ export default function Carteiras() {
       )}
 
       {modal && (
-        <Modal title={modal === "create" ? "Nova Carteira" : "Editar Carteira"} onClose={closeModal}>
+        <Modal title={editId ? "Modificar Carteira" : "Configurar Nova Carteira"} onClose={() => setModal(null)}>
           <div className="space-y-4">
-            {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            {error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2 text-xs font-semibold">
+                <AlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Nome *</label>
-              <input className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Renda Variável Brasil" autoFocus />
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nome Identificador</label>
+              <input 
+                type="text" 
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Ex: Carteira de Dividendos Principal"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </div>
+
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
-              <textarea className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Objetivo desta carteira..." />
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Descrição do Objetivo</label>
+              <textarea 
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                rows={2}
+                placeholder="Ex: Foco em ativos geradores de renda com yield acima de 6%."
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Moeda</label>
-                <select className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-                  <option value="BRL">BRL — Real</option>
-                  <option value="USD">USD — Dólar</option>
-                  <option value="EUR">EUR — Euro</option>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda Padrão</label>
+                <select 
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={form.currency}
+                  onChange={(e) => setForm({ ...form, currency: e.target.value })}
+                >
+                  <option value="BRL">BRL (Real)</option>
+                  <option value="USD">USD (Dólar)</option>
+                  <option value="EUR">EUR (Euro)</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                <select className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={form.is_active ? "true" : "false"} onChange={(e) => setForm({ ...form, is_active: e.target.value === "true" })}>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Status Operacional</label>
+                <select 
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={form.is_active ? "true" : "false"}
+                  onChange={(e) => setForm({ ...form, is_active: e.target.value === "true" })}
+                >
                   <option value="true">Ativa</option>
                   <option value="false">Inativa</option>
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={closeModal} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium disabled:opacity-50 transition">
-                {saving ? "Salvando..." : "Salvar"}
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-600 font-semibold hover:text-slate-800">Cancelar</button>
+              <button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-bold rounded-lg transition"
+              >
+                {saving ? "Salvando..." : "Confirmar Criação"}
               </button>
             </div>
           </div>
