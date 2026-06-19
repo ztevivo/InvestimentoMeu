@@ -3,22 +3,22 @@ import { supabase } from "../services/supabase";
 import Modal from "../components/Modal";
 import { Plus, Pencil, Trash2, Search, Sparkles, RefreshCw, AlertCircle } from "lucide-react";
 
-const ASSET_TYPES = ["ACAO","FII","ETF","BDR","STOCK","REIT","CRYPTO","RENDA_FIXA","TESOURO","CRI","CRA","DEBENTURE","OUTRO"];
-const CLASSIFICATIONS = ["CORE","SATELITE","OPORTUNIDADE","ESPECULATIVO","ESTUDO"];
+const ASSET_TYPES = ["ACAO", "FII", "ETF", "BDR", "STOCK", "REIT", "CRYPTO", "RENDA_FIXA", "TESOURO", "CRI", "CRA", "DEBENTURE", "OUTRO"];
+const CLASSIFICATIONS = ["CORE", "SATELITE", "OPORTUNIDADE", "ESPECULATIVO", "ESTUDO"];
 
-const emptyForm = { 
-  ticker: "", 
-  name: "", 
-  asset_type: "ACAO", 
-  classification: "ESTUDO", 
-  sector: "", 
-  subsector: "", 
-  segment: "", 
-  currency: "BRL", 
-  exchange: "SAO", 
-  cnpj: "", 
-  is_active: true, 
-  notes: "" 
+const emptyForm = {
+  ticker: "",
+  name: "",
+  asset_type: "ACAO",
+  classification: "ESTUDO",
+  sector: "",
+  subsector: "",
+  segment: "",
+  currency: "BRL",
+  exchange: "SAO",
+  cnpj: "",
+  is_active: true,
+  notes: ""
 };
 
 const typeColors = {
@@ -45,25 +45,32 @@ export default function Ativos() {
 
   async function loadAtivos() {
     setLoading(true);
-    const { data, error: err } = await supabase
-      .from("investment_tickers")
-      .select("*")
-      .eq("is_deleted", false)
-      .order("ticker", { ascending: true });
-    
-    if (!err) setItems(data || []);
-    setLoading(false);
+    try {
+      const { data, error: err } = await supabase
+        .from("investment_tickers")
+        .select("*")
+        .eq("is_deleted", false)
+        .order("ticker", { ascending: true });
+      
+      if (err) throw err;
+      setItems(data || []);
+    } catch (err) {
+      console.error(err);
+      setError("Erro ao carregar os ativos do banco.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     loadAtivos();
   }, []);
 
-  function openCreate() { 
-    setForm(emptyForm); 
-    setEditId(null); 
-    setError(""); 
-    setModal("create"); 
+  function openCreate() {
+    setForm(emptyForm);
+    setEditId(null);
+    setError("");
+    setModal("create");
   }
 
   function openEdit(item) {
@@ -76,7 +83,7 @@ export default function Ativos() {
       subsector: item.subsector || "",
       segment: item.segment || "",
       currency: item.currency || "BRL",
-      exchange: item.exchange || "",
+      exchange: item.exchange || "SAO",
       cnpj: item.cnpj || "",
       is_active: item.is_active ?? true,
       notes: item.notes || ""
@@ -86,10 +93,9 @@ export default function Ativos() {
     setModal("edit");
   }
 
-  // MOTOR DE AUTO-PREENCHIMENTO VIA YAHOO FINANCE API
   async function handleAutoFetchData() {
     if (!form.ticker) {
-      setError("Por favor, digite um Ticker primeiro.");
+      setError("Por favor, digite um Ticker primeiro para efetuar a busca.");
       return;
     }
 
@@ -97,8 +103,7 @@ export default function Ativos() {
     setError("");
 
     let rawTicker = form.ticker.toUpperCase().trim();
-    // Regra prática para ações brasileiras
-    if ((rawTicker.length === 5 || rawTicker.length === 6 || rawTicker.length === 4) && !rawTicker.includes(".")) {
+    if ((rawTicker.length >= 4 && rawTicker.length <= 6) && !rawTicker.includes(".")) {
       rawTicker = `${rawTicker}.SA`;
     }
 
@@ -107,37 +112,35 @@ export default function Ativos() {
 
     try {
       const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error("Ativo não localizado no banco de dados do Yahoo Finance.");
+      if (!res.ok) throw new Error("Ativo não localizado na base do Yahoo Finance.");
       
       const resData = await res.json();
       const meta = resData?.chart?.result?.[0]?.meta;
 
       if (!meta) {
-        throw new Error("Não foi possível encontrar as propriedades estruturadas para este ticker.");
+        throw new Error("Metadados não retornados para este ativo.");
       }
 
-      // Tentativa de adivinhar o tipo de ativo baseado em sufixo comum
       let guessedType = "ACAO";
       if (form.ticker.toUpperCase().endsWith("11") && !form.ticker.toUpperCase().startsWith("IVVB")) {
-        guessedType = "FII"; // Padrão brasileiro para Fundos Imobiliários
+        guessedType = "FII";
       } else if (meta.instrumentType === "ETF") {
         guessedType = "ETF";
       }
 
-      // Atualiza o formulário automaticamente com os dados descobertos
       setForm(prev => ({
         ...prev,
         ticker: prev.ticker.toUpperCase().trim(),
-        name: meta.longName || meta.shortName || prev.name || "Empresa Encontrada",
+        name: meta.longName || meta.shortName || prev.name || "Ativo Encontrado",
         currency: meta.currency || "BRL",
         exchange: meta.exchangeName || "SAO",
         asset_type: guessedType,
-        sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Financeiro/Industrial")
+        sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Mercado Geral")
       }));
 
     } catch (err) {
       console.error(err);
-      setError("Falha ao buscar automaticamente. Verifique se o ticker está correto ou preencha manualmente.");
+      setError("Não encontramos o ativo automaticamente. Você pode preencher os campos manualmente.");
     } finally {
       setSearchingApi(false);
     }
@@ -157,14 +160,14 @@ export default function Ativos() {
       name: form.name.trim(),
       asset_type: form.asset_type,
       classification: form.classification,
-      sector: form.sector.trim(),
-      subsector: form.subsector.trim(),
-      segment: form.segment.trim(),
+      sector: form.sector.trim() || null,
+      subsector: form.subsector.trim() || null,
+      segment: form.segment.trim() || null,
       currency: form.currency,
-      exchange: form.exchange.trim(),
-      cnpj: form.cnpj.trim(),
-      is_active: form.is_active,
-      notes: form.notes.trim(),
+      exchange: form.exchange.trim() || "SAO",
+      cnpj: form.cnpj.trim() || null,
+      is_active: !!form.is_active,
+      notes: form.notes.trim() || null,
       updated_at: new Date().toISOString()
     };
 
@@ -184,19 +187,25 @@ export default function Ativos() {
       setModal(null);
       loadAtivos();
     } catch (err) {
-      setError(err.message || "Erro ao salvar o registro no banco.");
+      console.error(err);
+      setError(err.message || "Erro interno ao salvar o ativo no banco.");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(id) {
-    if (!window.confirm("Deseja realmente remover este ativo do sistema?")) return;
-    const { error: err } = await supabase
-      .from("investment_tickers")
-      .update({ is_deleted: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (!err) loadAtivos();
+    if (!window.confirm("Deseja marcar este ativo como removido?")) return;
+    try {
+      const { error: err } = await supabase
+        .from("investment_tickers")
+        .update({ is_deleted: true, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (err) throw err;
+      loadAtivos();
+    } catch (err) {
+      alert("Erro ao remover ativo.");
+    }
   }
 
   const filteredItems = items.filter(item => 
@@ -206,7 +215,6 @@ export default function Ativos() {
 
   return (
     <div className="space-y-6">
-      {/* Topo de Controles */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200/80 gap-4">
         <div className="relative w-full sm:max-w-xs flex items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
           <Search size={18} className="text-slate-400 mr-2 shrink-0" />
@@ -220,18 +228,17 @@ export default function Ativos() {
         </div>
         <button 
           onClick={openCreate}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl shadow-md shadow-indigo-200 transition"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl shadow-md transition"
         >
           <Plus size={16} /> Cadastrar Novo Ativo
         </button>
       </div>
 
-      {/* Grid Principal ou Tabela */}
       {loading ? (
-        <div className="text-center py-12 text-slate-500 font-medium">Carregando catálogo de ativos...</div>
+        <div className="text-center py-12 text-slate-500 font-medium">Buscando ativos salvos...</div>
       ) : filteredItems.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-100 shadow-sm text-slate-400">
-          Nenhum ativo localizado. Clique em "Cadastrar Novo Ativo" para começar seu teste.
+          Nenhum ativo localizado. Crie um novo e teste o preenchimento automático.
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -273,7 +280,6 @@ export default function Ativos() {
         </div>
       )}
 
-      {/* MODAL DE INTERAÇÃO COM FORMULÁRIO */}
       {modal && (
         <Modal title={editId ? "Editar Detalhes do Ativo" : "Cadastrar Ativo Inteligente"} onClose={() => setModal(null)}>
           <div className="space-y-4">
@@ -284,14 +290,13 @@ export default function Ativos() {
               </div>
             )}
 
-            {/* Linha do Ticker + Botão de Captura Inteligente */}
             <div className="flex items-end gap-3 bg-slate-50 p-3 rounded-xl border border-indigo-100">
               <div className="flex-1">
                 <label className="block text-xs font-bold text-indigo-900 uppercase tracking-wider mb-1">Ticker Comercial</label>
                 <input 
                   type="text" 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase font-bold"
-                  placeholder="Ex: WEGE3, SANB11"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none uppercase font-bold"
+                  placeholder="Ex: WEGE3, IVVB11"
                   value={form.ticker}
                   onChange={(e) => setForm({ ...form, ticker: e.target.value })}
                   disabled={!!editId}
@@ -314,8 +319,8 @@ export default function Ativos() {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nome Completo da Empresa</label>
               <input 
                 type="text" 
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="Razão social ou nome de mercado"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                placeholder="Razão social ou nome fantasia"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
@@ -325,7 +330,7 @@ export default function Ativos() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Classe de Ativo</label>
                 <select 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
                   value={form.asset_type}
                   onChange={(e) => setForm({ ...form, asset_type: e.target.value })}
                 >
@@ -335,7 +340,7 @@ export default function Ativos() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Classificação Interna</label>
                 <select 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
                   value={form.classification}
                   onChange={(e) => setForm({ ...form, classification: e.target.value })}
                 >
@@ -349,7 +354,7 @@ export default function Ativos() {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setor Econômico</label>
                 <input 
                   type="text" 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
                   placeholder="Ex: Utilidade Pública"
                   value={form.sector}
                   onChange={(e) => setForm({ ...form, sector: e.target.value })}
@@ -358,7 +363,7 @@ export default function Ativos() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda Transacional</label>
                 <select 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
                   value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
@@ -370,19 +375,20 @@ export default function Ativos() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Observações (Notas)</label>
-              <textarea 
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                rows={2} 
-                value={form.notes} 
-                onChange={(e) => setForm({ ...form, notes: e.target.value })} 
-                placeholder="Anotações adicionais sobre o ativo..."
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">CNPJ (Opcional)</label>
+              <input 
+                type="text" 
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                placeholder="00.000.000/0001-00"
+                value={form.cnpj}
+                onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
               />
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-600 font-semibold hover:text-slate-800">Cancelar</button>
+              <button type="button" onClick={() => setModal(null)} className="px-4 py-2 text-sm text-slate-600 font-semibold hover:text-slate-800">Cancelar</button>
               <button 
+                type="button"
                 onClick={handleSave} 
                 disabled={saving}
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white text-sm font-bold rounded-lg transition"
