@@ -70,11 +70,11 @@ export default function Carteiras() {
     setSaving(true);
     setError("");
 
-    // O payload envia estritamente a sigla curta de 3 letras exigida pela Constraint do banco (ex: "BRL")
+    // O payload garante o envio apenas do código ISO de 3 letras (Ex: "BRL")
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
-      currency: form.currency,
+      currency: form.currency.trim().toUpperCase(),
       is_active: !!form.is_active,
       updated_at: new Date().toISOString()
     };
@@ -205,6 +205,7 @@ export default function Carteiras() {
                   value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
+                  {/* Corrigido: o value agora é puramente a sigla curta exigida pelo Supabase */}
                   <option value="BRL">BRL (Real)</option>
                   <option value="USD">USD (Dólar)</option>
                   <option value="EUR">EUR (Euro)</option>
