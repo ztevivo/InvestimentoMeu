@@ -53,7 +53,7 @@ export default function Carteiras() {
     setForm({ 
       name: item.name, 
       description: item.description || "", 
-      currency: item.currency || "BRL", 
+      currency: item.currency ? item.currency.split(" ")[0].substring(0, 3) : "BRL", 
       is_active: !!item.is_active 
     });
     setEditId(item.id); 
@@ -70,11 +70,13 @@ export default function Carteiras() {
     setSaving(true);
     setError("");
 
-    // O payload garante o envio apenas do código ISO de 3 letras (Ex: "BRL")
+    // Força o fatiamento da string enviada para o banco ter exatamente apenas as 3 letras limpas.
+    const cleanCurrency = form.currency.split(" ")[0].substring(0, 3).toUpperCase();
+
     const payload = {
       name: form.name.trim(),
       description: form.description.trim() || null,
-      currency: form.currency.trim().toUpperCase(),
+      currency: cleanCurrency,
       is_active: !!form.is_active,
       updated_at: new Date().toISOString()
     };
@@ -202,13 +204,12 @@ export default function Carteiras() {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda Core</label>
                 <select 
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={form.currency}
+                  value={form.currency.split(" ")[0].substring(0, 3)}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
-                  {/* Corrigido: o value agora é puramente a sigla curta exigida pelo Supabase */}
-                  <option value="BRL">BRL (Real)</option>
-                  <option value="USD">USD (Dólar)</option>
-                  <option value="EUR">EUR (Euro)</option>
+                  <option value="BRL">BRL</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
                 </select>
               </div>
               <div>
