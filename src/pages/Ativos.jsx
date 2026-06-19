@@ -15,7 +15,7 @@ const emptyForm = {
   subsector: "",
   segment: "",
   currency: "BRL",
-  exchange: "SAO",
+  exchange: "BVMF",
   cnpj: "",
   is_active: true,
   notes: ""
@@ -83,7 +83,7 @@ export default function Ativos() {
       subsector: item.subsector || "",
       segment: item.segment || "",
       currency: item.currency || "BRL",
-      exchange: item.exchange || "SAO",
+      exchange: item.exchange || "BVMF",
       cnpj: item.cnpj || "",
       is_active: item.is_active ?? true,
       notes: item.notes || ""
@@ -128,12 +128,17 @@ export default function Ativos() {
         guessedType = "ETF";
       }
 
+      // Mapeia inteligentemente SAO/SA para BVMF atendendo à Check Constraint do banco
+      let detectedExchange = "BVMF";
+      if (meta.exchangeName === "NYQ" || meta.exchangeName === "NYSE") detectedExchange = "NYSE";
+      if (meta.exchangeName === "NMS" || meta.exchangeName === "NASDAQ") detectedExchange = "NASDAQ";
+
       setForm(prev => ({
         ...prev,
         ticker: prev.ticker.toUpperCase().trim(),
         name: meta.longName || meta.shortName || prev.name || "Ativo Encontrado",
         currency: meta.currency || "BRL",
-        exchange: meta.exchangeName || "SAO",
+        exchange: detectedExchange,
         asset_type: guessedType,
         sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Mercado Geral")
       }));
@@ -164,7 +169,7 @@ export default function Ativos() {
       subsector: form.subsector.trim() || null,
       segment: form.segment.trim() || null,
       currency: form.currency,
-      exchange: form.exchange.trim() || "SAO",
+      exchange: form.exchange.toUpperCase().trim() || "BVMF", // Corrigido para respeitar a Constraint do Banco
       cnpj: form.cnpj.trim() || null,
       is_active: !!form.is_active,
       notes: form.notes.trim() || null,
@@ -249,7 +254,7 @@ export default function Ativos() {
                   <th className="px-6 py-4">Ticker</th>
                   <th className="px-6 py-4">Nome da Empresa</th>
                   <th className="px-6 py-4">Classe</th>
-                  <th className="px-6 py-4">Setor</th>
+                  <th className="px-6 py-4">Bolsa (Exchange)</th>
                   <th className="px-6 py-4">Moeda</th>
                   <th className="px-6 py-4 text-center">Ações</th>
                 </tr>
@@ -264,7 +269,7 @@ export default function Ativos() {
                         {item.asset_type}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500 font-medium">{item.sector || "—"}</td>
+                    <td className="px-6 py-4 text-slate-500 font-bold uppercase">{item.exchange || "BVMF"}</td>
                     <td className="px-6 py-4 text-slate-500 font-semibold">{item.currency}</td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center items-center gap-2">
@@ -349,19 +354,29 @@ export default function Ativos() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Bolsa (Exchange)</label>
+                <input 
+                  type="text" 
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none uppercase font-bold"
+                  placeholder="Ex: BVMF, NYSE"
+                  value={form.exchange}
+                  onChange={(e) => setForm({ ...form, exchange: e.target.value })}
+                />
+              </div>
+              <div className="col-span-1">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setor Econômico</label>
                 <input 
                   type="text" 
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                  placeholder="Ex: Utilidade Pública"
+                  placeholder="Ex: Elétrico"
                   value={form.sector}
                   onChange={(e) => setForm({ ...form, sector: e.target.value })}
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda Transacional</label>
+              <div className="col-span-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda</label>
                 <select 
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
                   value={form.currency}
