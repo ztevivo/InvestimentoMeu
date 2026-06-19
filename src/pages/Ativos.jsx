@@ -82,7 +82,7 @@ export default function Ativos() {
       sector: item.sector || "",
       subsector: item.subsector || "",
       segment: item.segment || "",
-      currency: item.currency ? item.currency.substring(0, 3) : "BRL",
+      currency: item.currency || "BRL",
       exchange: item.exchange || "BVMF",
       cnpj: item.cnpj || "",
       is_active: item.is_active ?? true,
@@ -112,13 +112,13 @@ export default function Ativos() {
 
     try {
       const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error("API Proxy indisponível.");
+      if (!res.ok) throw new Error("Ativo não localizado na base do Yahoo Finance.");
       
       const resData = await res.json();
       const meta = resData?.chart?.result?.[0]?.meta;
 
       if (!meta) {
-        throw new Error("Dados indisponíveis.");
+        throw new Error("Metadados não retornados para este ativo.");
       }
 
       let guessedType = "ACAO";
@@ -128,39 +128,26 @@ export default function Ativos() {
         guessedType = "ETF";
       }
 
+      // Correção Crucial: Converte "SAO" ou "SA" do Yahoo para "BVMF" exigido pelo Supabase
       let detectedExchange = "BVMF";
-      if (meta.exchangeName === "NYQ" || meta.exchangeName === "NYSE") detectedExchange = "NYSE";
-      if (meta.exchangeName === "NMS" || meta.exchangeName === "NASDAQ") detectedExchange = "NASDAQ";
+      const apiExchange = (meta.exchangeName || "").toUpperCase();
+      if (apiExchange === "NYQ" || apiExchange === "NYSE") detectedExchange = "NYSE";
+      else if (apiExchange === "NMS" || apiExchange === "NASDAQ") detectedExchange = "NASDAQ";
+      else if (apiExchange === "SAO" || apiExchange === "SA" || rawTicker.endsWith(".SA")) detectedExchange = "BVMF";
 
       setForm(prev => ({
         ...prev,
         ticker: prev.ticker.toUpperCase().trim(),
         name: meta.longName || meta.shortName || prev.name || "Ativo Encontrado",
-        currency: meta.currency ? meta.currency.substring(0, 3) : "BRL",
+        currency: meta.currency || "BRL",
         exchange: detectedExchange,
         asset_type: guessedType,
         sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Mercado Geral")
       }));
 
     } catch (err) {
-      console.warn("Falha na API externa. Aplicando preenchimento inteligente local...");
-      let guessedType = "ACAO";
-      let detectedExchange = "BVMF";
-      let guessedCurrency = "BRL";
-
-      if (form.ticker.toUpperCase().endsWith("11")) {
-        guessedType = "FII";
-      }
-      
-      setForm(prev => ({
-        ...prev,
-        ticker: prev.ticker.toUpperCase().trim(),
-        name: prev.name || `Ativo ${prev.ticker.toUpperCase()}`,
-        currency: guessedCurrency,
-        exchange: detectedExchange,
-        asset_type: guessedType,
-        sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Mercado Geral")
-      }));
+      console.error(err);
+      setError("Não encontramos o ativo automaticamente. Preencha manualmente.");
     } finally {
       setSearchingApi(false);
     }
@@ -175,8 +162,11 @@ export default function Ativos() {
     setSaving(true);
     setError("");
 
-    const cleanCurrency = form.currency.split(" ")[0].substring(0, 3).toUpperCase();
-    const cleanExchange = form.exchange || "BVMF";
+    // Sanitização final para garantir conformidade com a CHECK Constraint do banco
+    let finalExchange = form.exchange.toUpperCase().trim();
+    if (finalExchange === "SAO" || finalExchange === "SA" || !finalExchange) {
+      finalExchange = "BVMF";
+    }
 
     const payload = {
       ticker: form.ticker.toUpperCase().trim(),
@@ -186,8 +176,8 @@ export default function Ativos() {
       sector: form.sector.trim() || null,
       subsector: form.subsector.trim() || null,
       segment: form.segment.trim() || null,
-      currency: cleanCurrency,
-      exchange: cleanExchange.toUpperCase().trim(),
+      currency: form.currency.toUpperCase().trim(),
+      exchange: finalExchange, 
       cnpj: form.cnpj.trim() || null,
       is_active: !!form.is_active,
       notes: form.notes.trim() || null,
@@ -397,7 +387,7 @@ export default function Ativos() {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda</label>
                 <select 
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
-                  value={form.currency.split(" ")[0].substring(0, 3)}
+                  value={form.currency}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
                   <option value="BRL">BRL</option>
