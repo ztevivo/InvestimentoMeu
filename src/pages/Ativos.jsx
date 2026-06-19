@@ -1,3 +1,4 @@
+// src/pages/Ativos.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../services/supabase";
 import Modal from "../components/Modal";
@@ -5,6 +6,7 @@ import { Plus, Pencil, Trash2, Search, Sparkles, RefreshCw, AlertCircle } from "
 
 const ASSET_TYPES = ["ACAO", "FII", "ETF", "BDR", "STOCK", "REIT", "CRYPTO", "RENDA_FIXA", "TESOURO", "CRI", "CRA", "DEBENTURE", "OUTRO"];
 const CLASSIFICATIONS = ["CORE", "SATELITE", "OPORTUNIDADE", "ESPECULATIVO", "ESTUDO"];
+const EXCHANGES = ["BVMF", "NYSE", "NASDAQ", "OTHER"];
 
 const emptyForm = {
   ticker: "",
@@ -74,6 +76,12 @@ export default function Ativos() {
   }
 
   function openEdit(item) {
+    let currentExchange = "BVMF";
+    if (item.exchange) {
+      const uppercased = item.exchange.toUpperCase().trim();
+      currentExchange = EXCHANGES.includes(uppercased) ? uppercased : "BVMF";
+    }
+
     setForm({
       ticker: item.ticker,
       name: item.name,
@@ -83,7 +91,7 @@ export default function Ativos() {
       subsector: item.subsector || "",
       segment: item.segment || "",
       currency: item.currency || "BRL",
-      exchange: item.exchange || "BVMF",
+      exchange: currentExchange,
       cnpj: item.cnpj || "",
       is_active: item.is_active ?? true,
       notes: item.notes || ""
@@ -112,7 +120,7 @@ export default function Ativos() {
 
     try {
       const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error("Ativo não localizado na base do Yahoo Finance.");
+      if (!res.ok) throw new Error("Ativo não localizado na base externa.");
       
       const resData = await res.json();
       const meta = resData?.chart?.result?.[0]?.meta;
@@ -128,12 +136,16 @@ export default function Ativos() {
         guessedType = "ETF";
       }
 
-      // Correção Crucial: Converte "SAO" ou "SA" do Yahoo para "BVMF" exigido pelo Supabase
+      // Mapeamento estrito para satisfazer a constraint de check do banco
       let detectedExchange = "BVMF";
       const apiExchange = (meta.exchangeName || "").toUpperCase();
-      if (apiExchange === "NYQ" || apiExchange === "NYSE") detectedExchange = "NYSE";
-      else if (apiExchange === "NMS" || apiExchange === "NASDAQ") detectedExchange = "NASDAQ";
-      else if (apiExchange === "SAO" || apiExchange === "SA" || rawTicker.endsWith(".SA")) detectedExchange = "BVMF";
+      if (apiExchange === "NYQ" || apiExchange === "NYSE") {
+        detectedExchange = "NYSE";
+      } else if (apiExchange === "NMS" || apiExchange === "NASDAQ") {
+        detectedExchange = "NASDAQ";
+      } else if (apiExchange === "SAO" || apiExchange === "SA" || rawTicker.endsWith(".SA")) {
+        detectedExchange = "BVMF";
+      }
 
       setForm(prev => ({
         ...prev,
@@ -146,8 +158,19 @@ export default function Ativos() {
       }));
 
     } catch (err) {
-      console.error(err);
-      setError("Não encontramos o ativo automaticamente. Preencha manualmente.");
+      console.warn(err);
+      // Fallback local se a API der erro
+      let guessedType = "ACAO";
+      if (form.ticker.toUpperCase().endsWith("11")) {
+        guessedType = "FII";
+      }
+      setForm(prev => ({
+        ...prev,
+        ticker: prev.ticker.toUpperCase().trim(),
+        name: prev.name || `Ativo ${prev.ticker.toUpperCase()}`,
+        exchange: "BVMF",
+        asset_type: guessedType
+      }));
     } finally {
       setSearchingApi(false);
     }
@@ -162,9 +185,9 @@ export default function Ativos() {
     setSaving(true);
     setError("");
 
-    // Sanitização final para garantir conformidade com a CHECK Constraint do banco
+    // Sanitização final forçada antes da requisição para o Supabase
     let finalExchange = form.exchange.toUpperCase().trim();
-    if (finalExchange === "SAO" || finalExchange === "SA" || !finalExchange) {
+    if (!EXCHANGES.includes(finalExchange)) {
       finalExchange = "BVMF";
     }
 
@@ -365,13 +388,16 @@ export default function Ativos() {
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-1">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Bolsa (Exchange)</label>
-                <input 
-                  type="text" 
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none uppercase font-bold"
-                  placeholder="Ex: BVMF, NYSE"
+                <select 
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none font-bold uppercase"
                   value={form.exchange}
                   onChange={(e) => setForm({ ...form, exchange: e.target.value })}
-                />
+                >
+                  <option value="BVMF">BVMF (B3)</option>
+                  <option value="NYSE">NYSE</option>
+                  <option value="NASDAQ">NASDAQ</option>
+                  <option value="OTHER">OTHER</option>
+                </select>
               </div>
               <div className="col-span-1">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Setor Econômico</label>
@@ -405,6 +431,17 @@ export default function Ativos() {
                 placeholder="00.000.000/0001-00"
                 value={form.cnpj}
                 onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Notas</label>
+              <textarea 
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none resize-none"
+                rows={2} 
+                value={form.notes} 
+                onChange={(e) => setForm({ ...form, notes: e.target.value })} 
+                placeholder="Observações..." 
               />
             </div>
 
