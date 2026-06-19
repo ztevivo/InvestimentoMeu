@@ -82,7 +82,7 @@ export default function Ativos() {
       sector: item.sector || "",
       subsector: item.subsector || "",
       segment: item.segment || "",
-      currency: item.currency || "BRL",
+      currency: item.currency ? item.currency.substring(0, 3) : "BRL",
       exchange: item.exchange || "BVMF",
       cnpj: item.cnpj || "",
       is_active: item.is_active ?? true,
@@ -112,13 +112,13 @@ export default function Ativos() {
 
     try {
       const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error("Ativo não localizado na base do Yahoo Finance.");
+      if (!res.ok) throw new Error("API Proxy indisponível.");
       
       const resData = await res.json();
       const meta = resData?.chart?.result?.[0]?.meta;
 
       if (!meta) {
-        throw new Error("Metadados não retornados para este ativo.");
+        throw new Error("Dados indisponíveis.");
       }
 
       let guessedType = "ACAO";
@@ -128,7 +128,6 @@ export default function Ativos() {
         guessedType = "ETF";
       }
 
-      // Mapeia inteligentemente SAO/SA para BVMF atendendo à Check Constraint do banco
       let detectedExchange = "BVMF";
       if (meta.exchangeName === "NYQ" || meta.exchangeName === "NYSE") detectedExchange = "NYSE";
       if (meta.exchangeName === "NMS" || meta.exchangeName === "NASDAQ") detectedExchange = "NASDAQ";
@@ -137,15 +136,31 @@ export default function Ativos() {
         ...prev,
         ticker: prev.ticker.toUpperCase().trim(),
         name: meta.longName || meta.shortName || prev.name || "Ativo Encontrado",
-        currency: meta.currency || "BRL",
+        currency: meta.currency ? meta.currency.substring(0, 3) : "BRL",
         exchange: detectedExchange,
         asset_type: guessedType,
         sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Mercado Geral")
       }));
 
     } catch (err) {
-      console.error(err);
-      setError("Não encontramos o ativo automaticamente. Você pode preencher os campos manualmente.");
+      console.warn("Falha na API externa. Aplicando preenchimento inteligente local...");
+      let guessedType = "ACAO";
+      let detectedExchange = "BVMF";
+      let guessedCurrency = "BRL";
+
+      if (form.ticker.toUpperCase().endsWith("11")) {
+        guessedType = "FII";
+      }
+      
+      setForm(prev => ({
+        ...prev,
+        ticker: prev.ticker.toUpperCase().trim(),
+        name: prev.name || `Ativo ${prev.ticker.toUpperCase()}`,
+        currency: guessedCurrency,
+        exchange: detectedExchange,
+        asset_type: guessedType,
+        sector: prev.sector || (guessedType === "FII" ? "Imobiliário" : "Mercado Geral")
+      }));
     } finally {
       setSearchingApi(false);
     }
@@ -160,6 +175,9 @@ export default function Ativos() {
     setSaving(true);
     setError("");
 
+    const cleanCurrency = form.currency.split(" ")[0].substring(0, 3).toUpperCase();
+    const cleanExchange = form.exchange || "BVMF";
+
     const payload = {
       ticker: form.ticker.toUpperCase().trim(),
       name: form.name.trim(),
@@ -168,8 +186,8 @@ export default function Ativos() {
       sector: form.sector.trim() || null,
       subsector: form.subsector.trim() || null,
       segment: form.segment.trim() || null,
-      currency: form.currency,
-      exchange: form.exchange.toUpperCase().trim() || "BVMF", // Corrigido para respeitar a Constraint do Banco
+      currency: cleanCurrency,
+      exchange: cleanExchange.toUpperCase().trim(),
       cnpj: form.cnpj.trim() || null,
       is_active: !!form.is_active,
       notes: form.notes.trim() || null,
@@ -379,12 +397,12 @@ export default function Ativos() {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Moeda</label>
                 <select 
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none"
-                  value={form.currency}
+                  value={form.currency.split(" ")[0].substring(0, 3)}
                   onChange={(e) => setForm({ ...form, currency: e.target.value })}
                 >
-                  <option value="BRL">BRL (R$)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
+                  <option value="BRL">BRL</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
                 </select>
               </div>
             </div>
